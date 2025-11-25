@@ -1,9 +1,20 @@
 import torch
 from torch import nn
 
-class NetworkTransformer(nn.Module):
+class PatchChannelGLU(nn.Module):
+        def __init__(self, patch_len, d_model):
+            super().__init__()
+            self.linear_a = nn.Linear(patch_len, d_model)
+            self.linear_b = nn.Linear(patch_len, d_model)
+        def forward(self, x):  # x: [Batch*Channel, Patch_num, Patch_len]
+            a = self.linear_a(x)
+            b = torch.sigmoid(self.linear_b(x))
+            return a * b
+        
+class Network(nn.Module):
+    
     def __init__(self, seq_len, pred_len, patch_len, stride, padding_patch, d_model=64, nhead=4, num_layers=2):
-        super(NetworkTransformer, self).__init__()
+        super(Network, self).__init__()
         self.pred_len = pred_len
         self.patch_len = patch_len
         self.stride = stride
@@ -14,13 +25,15 @@ class NetworkTransformer(nn.Module):
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             self.patch_num += 1
 
-        # Patch Embedding
-        self.patch_embed = nn.Linear(patch_len, d_model)
+        # Patch Channel GLU + Patch Embedding
+        self.patch_channel_glu = PatchChannelGLU(patch_len, d_model)
+        self.patch_embed = nn.Linear(d_model, d_model)
         self.gelu1 = nn.GELU()
         self.bn1 = nn.BatchNorm1d(self.patch_num)
         # Transformer Encoder
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
         # Flatten Head
         self.flatten = nn.Flatten(start_dim=-2)
         self.fc_out = nn.Sequential(
@@ -31,13 +44,13 @@ class NetworkTransformer(nn.Module):
 
 
         # Linear Stream (trend)
-        self.fc_trend1 = nn.Linear(seq_len, pred_len * 4)
-        self.avgpool1 = nn.AvgPool1d(kernel_size=2)
-        self.ln1 = nn.LayerNorm(pred_len * 2)
-        self.fc_trend2 = nn.Linear(pred_len * 2, pred_len)
-        self.avgpool2 = nn.AvgPool1d(kernel_size=2)
-        self.ln2 = nn.LayerNorm(pred_len // 2)
-        self.fc_trend3 = nn.Linear(pred_len // 2, pred_len)
+        # self.fc_trend1 = nn.Linear(seq_len, pred_len * 4)
+        # self.avgpool1 = nn.AvgPool1d(kernel_size=2)
+        # self.ln1 = nn.LayerNorm(pred_len * 2)
+
+        self.fc_trend2 = nn.Linear(seq_len, pred_len * 2)
+        self.ln2 = nn.LayerNorm(pred_len * 2)
+        self.fc_trend3 = nn.Linear(pred_len * 2, pred_len)
         # Streams Concatination
         self.fc_concat = nn.Linear(pred_len * 2, pred_len)
 
@@ -53,19 +66,27 @@ class NetworkTransformer(nn.Module):
         if self.padding_patch == 'end':
             s = self.padding_patch_layer(s)
         s = s.unfold(dimension=-1, size=self.patch_len, step=self.stride) # [Batch*Channel, Patch_num, Patch_len]
+        # Patch Channel GLU
+        s = self.patch_channel_glu(s) # [Batch*Channel, Patch_num, d_model]
         # Patch Embedding
         s = self.patch_embed(s) # [Batch*Channel, Patch_num, d_model]
-        # Transformer Encoder
-        s = self.transformer_encoder(s) # [Batch*Channel, Patch_num, d_model]
+        # Causal Masking cho attention
+        device = s.device
+        patch_num = s.shape[1]
+        mask = torch.triu(torch.ones(patch_num, patch_num, device=device), diagonal=1).bool() # upper triangular
+        # Transformer Encoder với mask
+        s = self.transformer_encoder(s, mask=mask) # [Batch*Channel, Patch_num, d_model]
         # Flatten Head
         s = self.flatten(s) # [Batch*Channel, Patch_num*d_model]
         s = self.fc_out(s) # [Batch*Channel, pred_len]
+
+
         # Linear Stream (trend)
-        t = self.fc_trend1(t)
-        t = self.avgpool1(t)
-        t = self.ln1(t)
+        # t = self.fc_trend1(t)
+        # t = self.avgpool1(t)
+        # t = self.ln1(t)
         t = self.fc_trend2(t)
-        t = self.avgpool2(t)
+        # t = self.avgpool2(t)
         t = self.ln2(t)
         t = self.fc_trend3(t)
         # Streams Concatination
