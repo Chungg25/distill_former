@@ -67,7 +67,7 @@ parser.add_argument('--lradj', type=str, default='type1', help='adjust learning 
 parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 parser.add_argument('--revin', type=int, default=1, help='RevIN; True 1 False 0')
 # parser.add_argument('--warmup_epochs',type=int,default = 0)
-parser.add_argument('--dropout', type=float, default=0.3, help='dropout rate')
+parser.add_argument('--dropout', type=float, default=0, help='dropout rate')
 
 
 # GPU

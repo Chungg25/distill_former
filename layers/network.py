@@ -25,13 +25,14 @@ class PatchChannelGLUMix(nn.Module):
         
 class Network(nn.Module):
     
-    def __init__(self, seq_len, pred_len, patch_len, stride, padding_patch, d_model=64, nhead=4, num_layers=2):
+    def __init__(self, seq_len, pred_len, patch_len, stride, padding_patch, droup_out = 0, d_model=64, nhead=4, num_layers=2):
         super(Network, self).__init__()
         self.pred_len = pred_len
         self.patch_len = patch_len
         self.stride = stride
         self.padding_patch = padding_patch
         self.dim = d_model
+        self.drop_out = droup_out
         self.patch_num = (seq_len - patch_len)//stride + 1
 
         if padding_patch == 'end':
@@ -46,7 +47,7 @@ class Network(nn.Module):
         self.bn1 = nn.BatchNorm1d(self.patch_num)
 
         # Transformer Encoder
-        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True, dropout=0.3)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
         # Flatten Head
@@ -54,7 +55,9 @@ class Network(nn.Module):
         self.fc_out = nn.Sequential(
             nn.Linear(self.patch_num * d_model, pred_len * 2),
             nn.GELU(),
-            nn.Linear(pred_len * 2, pred_len)
+            nn.Dropout(0.3),
+            nn.Linear(pred_len * 2, pred_len),
+            nn.Dropout(0.3)
         )
 
 
@@ -64,7 +67,10 @@ class Network(nn.Module):
         self.ln2 = nn.LayerNorm(pred_len * 2)
         self.fc_trend3 = nn.Linear(pred_len * 2, pred_len)
         # Streams Concatination
-        self.fc_concat = nn.Linear(pred_len * 2, pred_len)
+        self.fc_concat = nn.Sequential(
+            nn.Linear(pred_len * 2, pred_len),
+            nn.Dropout(0.3)
+        )
 
     def forward(self, s, t):
         # s: [Batch, Input, Channel] (seasonality)
