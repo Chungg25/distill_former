@@ -47,7 +47,7 @@ class Network(nn.Module):
         self.bn1 = nn.BatchNorm1d(self.patch_num)
 
         # Transformer Encoder
-        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True, dropout=0.3)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True, dropout=self.drop_out)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
         # Flatten Head
@@ -55,9 +55,9 @@ class Network(nn.Module):
         self.fc_out = nn.Sequential(
             nn.Linear(self.patch_num * d_model, pred_len * 2),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(self.drop_out),
             nn.Linear(pred_len * 2, pred_len),
-            nn.Dropout(0.3)
+            nn.Dropout(self.drop_out)
         )
 
 
@@ -69,7 +69,7 @@ class Network(nn.Module):
         # Streams Concatination
         self.fc_concat = nn.Sequential(
             nn.Linear(pred_len * 2, pred_len),
-            nn.Dropout(0.3)
+            nn.Dropout(self.drop_out)
         )
 
     def forward(self, s, t):
