@@ -97,7 +97,7 @@ class Network(nn.Module):
         mask = torch.triu(torch.ones(patch_num, patch_num, device=device), diagonal=1).bool()
         
         # Transformer Encoder with mask
-        s = self.transformer_encoder(s, mask=mask) # [Batch*Channel, Patch_num, d_model]
+        s = self.transformer_encoder(s, src_mask=mask) # [Batch*Channel, Patch_num, d_model]
         
         # Flatten Head
         s = self.flatten(s) # [Batch*Channel, Patch_num*d_model]
