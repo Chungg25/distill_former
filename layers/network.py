@@ -55,9 +55,9 @@ class Network(nn.Module):
         self.fc_out = nn.Sequential(
             nn.Linear(self.patch_num * d_model, pred_len * 2),
             nn.GELU(),
-            # nn.Dropout(self.drop_out),
+            nn.Dropout(self.drop_out),
             nn.Linear(pred_len * 2, pred_len),
-            # nn.Dropout(self.drop_out)
+            nn.Dropout(self.drop_out)
         )
 
 
