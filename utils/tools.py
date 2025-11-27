@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import time
+import math
 
 plt.switch_backend('agg')
 
@@ -25,6 +26,19 @@ def adjust_learning_rate(optimizer, epoch, args):
         w = 10  # warm-up coefficient
         lr_adjust = {epoch: args.learning_rate / (1 + np.exp(-k * (epoch - w))) - args.learning_rate / (1 + np.exp(-k/s * (epoch - w*s)))}
     
+    elif args.lradj == 'inverse_sqrt':
+        # epoch: integer >= 1
+        # compute k so that S(w) = p_peak
+        p_peak=0.95
+        w = 10
+        k = -2.0 / float(w) * math.log(1.0 / p_peak - 1.0)
+        S = 1.0 / (1.0 + math.exp(-k * (epoch - 0.5 * w)))
+        if epoch <= w:
+            D = 1.0
+        else:
+            D = math.sqrt(float(w) / float(epoch))
+        lr_adjust = {epoch: args.learning_rate * S * D}
+
     elif args.lradj == 'constant':
         lr_adjust = {epoch: args.learning_rate}
     elif args.lradj == '3':
@@ -107,8 +121,6 @@ def visual(true, preds=None, name='./pic/test.pdf'):
 
 
 def test_params_memory(model, x_shape, device='cuda:0'):
-    import torch
-
     batch_size = 1
     seq_len, c_in = x_shape
     pred_len = getattr(model, 'pred_len', 96)
