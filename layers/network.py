@@ -11,17 +11,20 @@ class PatchChannelGLU(nn.Module):
             b = torch.sigmoid(self.linear_b(x))
             return a * b
         
+#Intra-series Variations Modeling
+#Inter-series Dependencies Modeling
+        
 
-class PatchChannelGLUMix(nn.Module):
-    def __init__(self, patch_len, in_channels, d_model):
-        super().__init__()
-        self.linear_a = nn.Linear(in_channels * patch_len, d_model)
-        self.linear_b = nn.Linear(in_channels * patch_len, d_model)
-    def forward(self, x):  # x: [Batch, Patch_num, Channel, Patch_len]
-        x = x.reshape(x.shape[0], x.shape[1], -1)  # [Batch, Patch_num, Channel*Patch_len]
-        a = self.linear_a(x)
-        b = torch.sigmoid(self.linear_b(x))
-        return a * b  # [Batch, Patch_num, d_model]
+# class PatchChannelGLUMix(nn.Module):
+#     def __init__(self, patch_len, in_channels, d_model):
+#         super().__init__()
+#         self.linear_a = nn.Linear(in_channels * patch_len, d_model)
+#         self.linear_b = nn.Linear(in_channels * patch_len, d_model)
+#     def forward(self, x):  # x: [Batch, Patch_num, Channel, Patch_len]
+#         x = x.reshape(x.shape[0], x.shape[1], -1)  # [Batch, Patch_num, Channel*Patch_len]
+#         a = self.linear_a(x)
+#         b = torch.sigmoid(self.linear_b(x))
+#         return a * b  # [Batch, Patch_num, d_model]
         
 class Network(nn.Module):
     
@@ -39,7 +42,6 @@ class Network(nn.Module):
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             self.patch_num += 1
 
-        # Patch Channel GLU + Patch Embedding
         self.patch_channel_glu = PatchChannelGLU(patch_len, d_model)
         
         self.patch_embed = nn.Linear(d_model, d_model)
@@ -60,12 +62,17 @@ class Network(nn.Module):
             nn.Dropout(self.drop_out)
         )
 
-
         # Linear Stream (trend)
-        self.fc_trend2 = nn.Linear(seq_len, pred_len * 4)
-        self.avgpool2 = nn.AvgPool1d(kernel_size=2)
-        self.ln2 = nn.LayerNorm(pred_len * 2)
-        self.fc_trend3 = nn.Linear(pred_len * 2, pred_len)
+        # Deep MLP for trend modeling
+        self.trend_mlp = nn.Sequential(
+            nn.Linear(seq_len, 256),
+            nn.GELU(),
+            nn.Dropout(self.drop_out),
+            nn.Linear(256, 128),
+            nn.GELU(),
+            nn.Dropout(self.drop_out),
+            nn.Linear(128, pred_len),
+        )
         # Streams Concatination
         self.fc_concat = nn.Sequential(
             nn.Linear(pred_len * 2, pred_len),
@@ -105,10 +112,7 @@ class Network(nn.Module):
 
 
         # Linear Stream (trend)
-        t = self.fc_trend2(t)
-        t = self.avgpool2(t)
-        t = self.ln2(t)
-        t = self.fc_trend3(t)
+        t = self.trend_mlp(t)
 
         # Streams Concatination
         x = torch.cat((s, t), dim=1) # [Batch*Channel, pred_len*2]

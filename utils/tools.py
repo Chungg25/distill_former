@@ -27,16 +27,23 @@ def adjust_learning_rate(optimizer, epoch, args):
         lr_adjust = {epoch: args.learning_rate / (1 + np.exp(-k * (epoch - w))) - args.learning_rate / (1 + np.exp(-k/s * (epoch - w*s)))}
     
     elif args.lradj == 'inverse_sqrt':
-        # epoch: integer >= 1
+        t = float(epoch)
         # compute k so that S(w) = p_peak
-        p_peak=0.95
-        w = 10
-        k = -2.0 / float(w) * math.log(1.0 / p_peak - 1.0)
-        S = 1.0 / (1.0 + math.exp(-k * (epoch - 0.5 * w)))
-        if epoch <= w:
-            D = 1.0
-        else:
-            D = math.sqrt(float(w) / float(epoch))
+        eps = 1e-9
+        w
+        p = min(max(0.95, eps), 1.0-eps)
+        k = -2.0 / float(w) * math.log(1.0 / p - 1.0)
+        def S(x, kk, cc):
+            return 1.0 / (1.0 + math.exp(-kk * (x - cc)))
+        S1 = S(t, k, w)
+        S2 = S(t, k / s, s * w)
+        m = max(0.0, S1 - S2)
+        # normalize over [0..T]
+        denom = 0.0
+        for tt in range(0, T+1):
+            denom = max(denom, S(tt, k, w) - S(tt, k / s, s * w))
+        denom = denom if denom > 1e-12 else 1.0
+        mult = m / denom
         lr_adjust = {epoch: args.learning_rate * S * D}
 
     elif args.lradj == 'constant':
