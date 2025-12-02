@@ -11,20 +11,17 @@ class PatchChannelGLU(nn.Module):
             b = torch.sigmoid(self.linear_b(x))
             return a * b
         
-#Intra-series Variations Modeling
-#Inter-series Dependencies Modeling
-        
 
-# class PatchChannelGLUMix(nn.Module):
-#     def __init__(self, patch_len, in_channels, d_model):
-#         super().__init__()
-#         self.linear_a = nn.Linear(in_channels * patch_len, d_model)
-#         self.linear_b = nn.Linear(in_channels * patch_len, d_model)
-#     def forward(self, x):  # x: [Batch, Patch_num, Channel, Patch_len]
-#         x = x.reshape(x.shape[0], x.shape[1], -1)  # [Batch, Patch_num, Channel*Patch_len]
-#         a = self.linear_a(x)
-#         b = torch.sigmoid(self.linear_b(x))
-#         return a * b  # [Batch, Patch_num, d_model]
+class PatchChannelGLUMix(nn.Module):
+    def __init__(self, patch_len, in_channels, d_model):
+        super().__init__()
+        self.linear_a = nn.Linear(in_channels * patch_len, d_model)
+        self.linear_b = nn.Linear(in_channels * patch_len, d_model)
+    def forward(self, x):  # x: [Batch, Patch_num, Channel, Patch_len]
+        x = x.reshape(x.shape[0], x.shape[1], -1)  # [Batch, Patch_num, Channel*Patch_len]
+        a = self.linear_a(x)
+        b = torch.sigmoid(self.linear_b(x))
+        return a * b  # [Batch, Patch_num, d_model]
         
 class Network(nn.Module):
     
@@ -42,15 +39,21 @@ class Network(nn.Module):
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             self.patch_num += 1
 
+        # Patch Channel GLU + Patch Embedding
         self.patch_channel_glu = PatchChannelGLU(patch_len, d_model)
-        
         self.patch_embed = nn.Linear(d_model, d_model)
         self.gelu1 = nn.GELU()
         self.bn1 = nn.BatchNorm1d(self.patch_num)
 
-        # Transformer Encoder
+        # Transformer Encoder for inter-series dependencies (across channels)
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True, dropout=self.drop_out)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        # Gating mechanism to control channel interaction
+        self.inter_gate = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.Sigmoid()
+        )
 
         # Flatten Head
         self.flatten = nn.Flatten(start_dim=-2)
@@ -63,62 +66,58 @@ class Network(nn.Module):
         )
 
         # Linear Stream (trend)
-        # Deep MLP for trend modeling
-        self.trend_mlp = nn.Sequential(
-            nn.Linear(seq_len, 256),
-            nn.GELU(),
-            nn.Dropout(self.drop_out),
-            nn.Linear(256, 128),
-            nn.GELU(),
-            nn.Dropout(self.drop_out),
-            nn.Linear(128, pred_len),
-        )
+        self.fc_trend2 = nn.Linear(seq_len, pred_len * 2)
+        self.avgpool2 = nn.AvgPool1d(kernel_size=2)
+        self.ln2 = nn.LayerNorm(pred_len)
+        self.fc_trend3 = nn.Linear(pred_len, pred_len)
         # Streams Concatination
         self.fc_concat = nn.Sequential(
             nn.Linear(pred_len * 2, pred_len),
-            # nn.Dropout(self.drop_out)
+            nn.Dropout(self.drop_out)
         )
 
     def forward(self, s, t):
         # s: [Batch, Input, Channel] (seasonality)
         # t: [Batch, Input, Channel] (trend)
-        s = s.permute(0,2,1) # [Batch, Channel, Input]
-        t = t.permute(0,2,1)
-        B, C, I = s.shape
-        s = torch.reshape(s, (B*C, I)) # [Batch*Channel, Input]
-        t = torch.reshape(t, (B*C, I))
+        # Keep channel dimension for inter-series modeling
+        B, I, C = s.shape
+        s = s.permute(0, 2, 1) # [Batch, Channel, Input]
+        t = t.permute(0, 2, 1)
         # Patching
         if self.padding_patch == 'end':
             s = self.padding_patch_layer(s)
-        s = s.unfold(dimension=-1, size=self.patch_len, step=self.stride) # [Batch*Channel, Patch_num, Patch_len]
-        
+        s = s.unfold(dimension=-1, size=self.patch_len, step=self.stride) # [Batch, Channel, Patch_num, Patch_len]
         # Patch Channel GLU
-        s = self.patch_channel_glu(s) # [Batch*Channel, Patch_num, d_model]
-        
+        s = self.patch_channel_glu(s.reshape(-1, s.shape[-2], s.shape[-1])) # [Batch*Channel, Patch_num, d_model]
+        s = s.reshape(B, C, s.shape[1], s.shape[2]) # [Batch, Channel, Patch_num, d_model]
         # Patch Embedding
-        s = self.patch_embed(s) # [Batch*Channel, Patch_num, d_model]
-        
-        # Causal Masking
-        device = s.device
-        patch_num = s.shape[1]
-        mask = torch.triu(torch.ones(patch_num, patch_num, device=device), diagonal=1).bool()
-        
-        # Transformer Encoder with mask
-        s = self.transformer_encoder(s, mask=mask) # [Batch*Channel, Patch_num, d_model]
-        
+        s = self.patch_embed(s) # [Batch, Channel, Patch_num, d_model]
+        # Inter-series transformer: treat Channel as sequence
+        s = s.permute(0, 2, 1, 3) # [Batch, Patch_num, Channel, d_model]
+        s = s.reshape(B * s.shape[1], C, s.shape[3]) # [Batch*Patch_num, Channel, d_model]
+        # Gate for channel interaction
+        gate = self.inter_gate(s) # [Batch*Patch_num, Channel, d_model]
+        s = s * gate # gated channel interaction
+        # Transformer encoder on channels
+        s = self.transformer_encoder(s) # [Batch*Patch_num, Channel, d_model]
+        # Restore shape
+        s = s.reshape(B, -1, C, s.shape[-1]) # [Batch, Patch_num, Channel, d_model]
+        s = s.permute(0, 2, 1, 3) # [Batch, Channel, Patch_num, d_model]
         # Flatten Head
-        s = self.flatten(s) # [Batch*Channel, Patch_num*d_model]
+        s = s.reshape(B * C, -1) # [Batch*Channel, Patch_num*d_model]
         s = self.fc_out(s) # [Batch*Channel, pred_len]
 
-
         # Linear Stream (trend)
-        t = self.trend_mlp(t)
+        t = t.reshape(B * C, -1)
+        t = self.fc_trend2(t)
+        t = self.avgpool2(t)
+        t = self.ln2(t)
+        t = self.fc_trend3(t)
 
         # Streams Concatination
         x = torch.cat((s, t), dim=1) # [Batch*Channel, pred_len*2]
         x = self.fc_concat(x) # [Batch*Channel, pred_len]
-
         # Channel concatination
-        x = torch.reshape(x, (B, C, self.pred_len)) # [Batch, Channel, Output]
-        x = x.permute(0,2,1) # [Batch, Output, Channel]
+        x = x.reshape(B, C, self.pred_len) # [Batch, Channel, Output]
+        x = x.permute(0, 2, 1) # [Batch, Output, Channel]
         return x

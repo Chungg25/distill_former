@@ -86,19 +86,19 @@ class Exp_Main(Exp_Basic):
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
 
                 # if train, use ratio to scale the prediction
-                if not is_test:
-                    # CARD loss with weight decay
-                    # self.ratio = np.array([max(1/np.sqrt(i+1),0.0) for i in range(self.args.pred_len)])
+                # if not is_test:
+                #     # CARD loss with weight decay
+                #     # self.ratio = np.array([max(1/np.sqrt(i+1),0.0) for i in range(self.args.pred_len)])
 
-                    # Arctangent loss with weight decay
-                    self.ratio = np.array([-1 * math.atan(i+1) + math.pi/4 + 1 for i in range(self.args.pred_len)])
-                    self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
+                #     # Arctangent loss with weight decay
+                #     self.ratio = np.array([-1 * math.atan(i+1) + math.pi/4 + 1 for i in range(self.args.pred_len)])
+                #     self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
 
-                    pred = outputs*self.ratio
-                    true = batch_y*self.ratio
-                else:
-                    pred = outputs#.detach().cpu()
-                    true = batch_y#.detach().cpu()
+                #     pred = outputs*self.ratio
+                #     true = batch_y*self.ratio
+                # else:
+                pred = outputs#.detach().cpu()
+                true = batch_y#.detach().cpu()
 
                 # pred = outputs.detach().cpu()
                 # true = batch_y.detach().cpu()
@@ -183,16 +183,17 @@ class Exp_Main(Exp_Basic):
 
                 # Arctangent loss with weight decay
                 # self.ratio = np.array([-1 * math.atan(i+1) + math.pi/4 + 1 for i in range(self.args.pred_len)])
-                alpha = 0.02  # Điều chỉnh tốc độ giảm
-                beta = 0.8    # Trọng số tối thiểu
-                self.ratio = np.array([
-                    beta + (1 - beta) * np.exp(-alpha * i) 
-                    for i in range(self.args.pred_len)
-                ])
-                self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
+                # alpha = 0.02  # Điều chỉnh tốc độ giảm
+                # beta = 0.8    # Trọng số tối thiểu
+                # self.ratio = np.array([
+                #     beta + (1 - beta) * np.exp(-alpha * i) 
+                #     for i in range(self.args.pred_len)
+                # ])
+                # self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
 
-                outputs = outputs * self.ratio
-                batch_y = batch_y * self.ratio
+                # outputs = outputs * self.ratio
+                # batch_y = batch_y * self.ratio
+
 
                 loss = mae_criterion(outputs, batch_y)
                 # loss = 0.5 * mse_criterion(outputs, batch_y) + 0.5 * mae_criterion(outputs, batch_y)
