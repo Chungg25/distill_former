@@ -59,6 +59,7 @@ class Network(nn.Module):
         self.fc_trend2 = nn.Linear(seq_len, pred_len * 4)
         self.avgpool2 = nn.AvgPool1d(kernel_size=2)
         self.ln2 = nn.LayerNorm(pred_len*2)
+        self.ft_dropout2 = nn.Dropout(self.drop_out)
         self.fc_trend3 = nn.Linear(pred_len*2, pred_len)
         # Streams Concatination
         # self.fc_concat = nn.Sequential(
@@ -103,13 +104,14 @@ class Network(nn.Module):
         s = self.fl_gelu(s)
         s = self.fl_dropout(s)
         s = self.fl_linear2(s)
-        s = self.fl_dropout(s)
+        # s = self.fl_dropout(s)
 
 
         # Linear Stream (trend)
         t = self.fc_trend2(t)
         t = self.avgpool2(t)
         t = self.ln2(t)
+        t = self.ft_dropout2(t)
         t = self.fc_trend3(t)
 
         # Streams Concatination
