@@ -96,12 +96,12 @@ class Network(nn.Module):
         self.patch_embed = nn.Linear(d_model, d_model)
 
         # 🔥 Conv1d + Pooling (NEW)
-        self.patch_conv = nn.Sequential(
-            CausalConv1d(d_model, d_model, kernel_size=3, dilation=1),
-            nn.GELU(),
-            CausalConv1d(d_model, d_model, kernel_size=3, dilation=2),
-            nn.GELU(),
-        )
+        # self.patch_conv = nn.Sequential(
+        #     CausalConv1d(d_model, d_model, kernel_size=3, dilation=1),
+        #     nn.GELU(),
+        #     CausalConv1d(d_model, d_model, kernel_size=3, dilation=2),
+        #     nn.GELU(),
+        # )
         # self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
 
         # self.patch_conv = nn.Conv1d(
