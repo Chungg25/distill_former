@@ -24,8 +24,8 @@ class CausalConv1d(nn.Module):
             in_channels,
             out_channels,
             kernel_size,
-            padding=0,
-            dilation=dilation
+            # padding=0,
+            # dilation=dilation
         )
 
     def forward(self, x):
