@@ -99,12 +99,12 @@ class Network(nn.Module):
         )
 
         self.fc_trend = nn.Sequential(
-            nn.Linear(seq_len, pred_len * 2),
+            nn.Linear(seq_len, pred_len * 4),
             nn.AvgPool1d(kernel_size=2),
-            nn.LayerNorm(pred_len),
+            nn.LayerNorm(pred_len*2),
             # nn.GELU(),
             # nn.Dropout(dropout),
-            nn.Linear(pred_len, pred_len)
+            nn.Linear(pred_len*2, pred_len)
         )
 
         # self.fc_trend = nn.Sequential(
