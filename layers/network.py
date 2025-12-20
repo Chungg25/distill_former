@@ -38,10 +38,10 @@ class CausalConv1d(nn.Module):
 class AdaptiveFusion(nn.Module):
     def __init__(self, pred_len):
         super().__init__()
-        self.fc = nn.Linear(pred_len * 2, pred_len)
+        self.fc = nn.Linear(pred_len, pred_len)
 
     def forward(self, s, t):
-        alpha = torch.sigmoid(self.fc(torch.cat([s, t], dim=-1)))
+        alpha = torch.sigmoid(self.fc(s + t))
         return alpha * s + (1 - alpha) * t
 
 
