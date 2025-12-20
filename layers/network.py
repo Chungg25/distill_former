@@ -138,7 +138,7 @@ class Network(nn.Module):
         # s_patch = self.gelu1(s_patch)
         # s_patch = self.ln1(s_patch)
 
-        # s_rem = s_patch
+        s_rem = s_patch
 
         s_patch = self.patch_embed(s_patch)
 
@@ -153,7 +153,7 @@ class Network(nn.Module):
         # s_patch = self.gelu2(s_patch)
         # s_patch = self.ln2(s_patch)
 
-        # s_patch = s_patch + s_rem
+        s_patch = s_patch + s_rem
 
         # s_patch = s_patch.permute(0, 2, 1)
         # s_patch = self.patch_pool(s_patch)
