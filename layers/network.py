@@ -35,19 +35,6 @@ class CausalConv1d(nn.Module):
         return self.conv(x)
 
 
-class PatchTimeEmbedding(nn.Module):
-    def __init__(self, max_patch_num, d_model):
-        super().__init__()
-        self.embedding = nn.Embedding(max_patch_num, d_model)
-
-    def forward(self, x):
-        # x: [B*C, P, D]
-        P = x.size(1)
-        pos = torch.arange(P, device=x.device).unsqueeze(0)
-        return x + self.embedding(pos)
-
-
-
 class AdaptiveFusion(nn.Module):
     def __init__(self, pred_len):
         super().__init__()
@@ -56,18 +43,6 @@ class AdaptiveFusion(nn.Module):
     def forward(self, s, t):
         alpha = torch.sigmoid(self.fc(torch.cat([s, t], dim=-1)))
         return alpha * s + (1 - alpha) * t
-
-class GatedPatchFC(nn.Module):
-    def __init__(self, in_dim, out_dim, dropout):
-        super().__init__()
-        self.fc_a = nn.Linear(in_dim, out_dim)
-        self.fc_b = nn.Linear(in_dim, out_dim)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        a = self.fc_a(x)
-        b = torch.sigmoid(self.fc_b(x))
-        return self.dropout(a * b)
 
 
 class Network(nn.Module):
@@ -95,7 +70,7 @@ class Network(nn.Module):
 
         # self.patch_embed = nn.Linear(d_model, d_model)
 
-        self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=3, dilation=1)
+        self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=2, dilation=1)
         self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
 
         self.gelu2 = nn.GELU()
