@@ -107,9 +107,9 @@ class Network(nn.Module):
         # )
 
         self.fc_trend = nn.Sequential(
-            nn.Linear(seq_len, seq_len),
+            nn.Linear(seq_len, pred_len * 2),
             nn.GELU(),
-            nn.Linear(seq_len, pred_len)
+            nn.Linear(pred_len * 2, pred_len)
         )
 
         
