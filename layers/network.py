@@ -169,19 +169,14 @@ class Network(nn.Module):
         s_patch = self.flatten(s_patch)
         s_out = self.patch_fc(s_patch)        # [B*C, pred_len]
 
-        # t_flat = t.reshape(B * C, I)
-        # t_out = self.fc_trend(t_flat)
+        t_flat = t.reshape(B * C, I)
+        t_out = self.fc_trend(t_flat)
 
         # x = torch.cat((s_out, t_out), dim=1)
         # x = self.fc(x)
         # x = torch.reshape(x, (B, C, self.pred_len))
         # x = x.permute(0, 2, 1)  
 
-        trend_out = []
-        for i in range(7):
-            trend_out.append(self.Linear_Trend[i](t[:, i, :]))  # [B, pred_len]
-        t_out = torch.stack(trend_out, dim=2)  # [B, pred_len, C]
-        t_out = t_out.reshape(B * C, self.pred_len)
 
         x = self.adaptive_fusion(s_out, t_out)
         x = x.view(B, C, self.pred_len)
