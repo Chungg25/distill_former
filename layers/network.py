@@ -68,7 +68,7 @@ class Network(nn.Module):
         self.gelu1 = nn.GELU()
         self.ln1 = nn.BatchNorm1d(self.patch_num)
 
-        # self.patch_embed = nn.Linear(d_model, d_model)
+        self.patch_embed = nn.Linear(d_model, d_model)
 
         self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=2, dilation=1)
         # self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
@@ -140,7 +140,7 @@ class Network(nn.Module):
 
         # s_rem = s_patch
 
-        # s_patch = self.patch_embed(s_patch)
+        s_patch = self.patch_embed(s_patch)
 
         # s_patch = self.time_pos_enc(s_patch)
 
