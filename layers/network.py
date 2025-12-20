@@ -66,7 +66,7 @@ class Network(nn.Module):
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
 
         self.gelu1 = nn.GELU()
-        self.ln1 = nn.LayerNorm(self.patch_num)
+        self.ln1 = nn.BatchNorm1d(self.patch_num)
 
         # self.patch_embed = nn.Linear(d_model, d_model)
 
@@ -74,7 +74,7 @@ class Network(nn.Module):
         # self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
 
         self.gelu2 = nn.GELU()
-        self.ln2 = nn.LayerNorm(self.patch_num)
+        self.ln2 = nn.BatchNorm1d(self.patch_num)
 
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
