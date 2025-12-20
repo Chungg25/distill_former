@@ -74,7 +74,7 @@ class Network(nn.Module):
         self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
 
         self.gelu2 = nn.GELU()
-        self.ln2 = nn.BatchNorm1d(self.patch_num)
+        self.ln2 = nn.BatchNorm1d(self.patch_num//2)
 
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
