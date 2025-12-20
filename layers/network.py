@@ -55,12 +55,12 @@ class Network(nn.Module):
         self.stride = stride
         self.padding_patch = padding_patch
 
-        self.patch_num = (seq_len - patch_len) // stride + 1
+        patch_num = (seq_len - patch_len) // stride + 1
         if padding_patch == 'end':
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             patch_num += 1
 
-        # self.patch_num = patch_num // 2
+        self.patch_num = patch_num
 
         # ---- Patch-level ----
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
