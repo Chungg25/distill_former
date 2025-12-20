@@ -60,7 +60,7 @@ class Network(nn.Module):
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             patch_num += 1
 
-        self.patch_num = patch_num
+        self.patch_num = patch_num // 2
 
         # ---- Patch-level ----
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
@@ -71,7 +71,7 @@ class Network(nn.Module):
         # self.patch_embed = nn.Linear(d_model, d_model)
 
         self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=2, dilation=1)
-        # self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
+        self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
 
         self.gelu2 = nn.GELU()
         self.bn2 = nn.BatchNorm1d(d_model)
@@ -152,6 +152,10 @@ class Network(nn.Module):
         s_patch = s_patch.permute(0, 2, 1)
 
         s_patch = s_patch + s_rem
+
+        s_patch = self.patch_pool(s_patch)
+        s_patch = s_patch.permute(0, 2, 1)    # [B*C, new_patch_num, d_model]
+
 
         s_patch_residual = s_patch
         s_patch = self.transformer_encoder(s_patch)
