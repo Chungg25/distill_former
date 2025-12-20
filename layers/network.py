@@ -114,7 +114,7 @@ class Network(nn.Module):
         # )
 
         
-        self.adaptive_fusion = AdaptiveFusion(pred_len)
+        # self.adaptive_fusion = AdaptiveFusion(pred_len)
         # self.fc = nn.Linear(pred_len*2, pred_len)
 
     def forward(self, s, t):
@@ -176,12 +176,12 @@ class Network(nn.Module):
         # x = x.permute(0, 2, 1)  
 
 
-        x = self.adaptive_fusion(s_out, t_out)
-        x = x.view(B, C, self.pred_len)
-        x = x.permute(0, 2, 1)                # [B, pred_len, C]
+        # x = self.adaptive_fusion(s_out, t_out)
+        # x = x.view(B, C, self.pred_len)
+        # x = x.permute(0, 2, 1)                # [B, pred_len, C]
 
-        # x = s_out + t_out
-        # x = torch.reshape(x, (B, C, self.pred_len)) # [Batch, Channel, Output]
-        # x = x.permute(0,2,1)
+        x = s_out + t_out
+        x = torch.reshape(x, (B, C, self.pred_len)) # [Batch, Channel, Output]
+        x = x.permute(0,2,1)
 
         return x
