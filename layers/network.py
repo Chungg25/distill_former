@@ -60,21 +60,21 @@ class Network(nn.Module):
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             patch_num += 1
 
-        self.patch_num = patch_num 
+        self.patch_num = patch_num // 2
 
         # ---- Patch-level ----
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
 
-        self.gelu1 = nn.GELU()
-        self.ln1 = nn.BatchNorm1d(self.patch_num)
+        # self.gelu1 = nn.GELU()
+        # self.ln1 = nn.BatchNorm1d(self.patch_num)
 
         self.patch_embed = nn.Linear(d_model, d_model)
 
         self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=2, dilation=1)
-        # self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
+        self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
 
-        self.gelu2 = nn.GELU()
-        self.ln2 = nn.BatchNorm1d(self.patch_num)
+        # self.gelu2 = nn.GELU()
+        # self.ln2 = nn.BatchNorm1d(self.patch_num)
 
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
@@ -99,12 +99,12 @@ class Network(nn.Module):
         )
 
         self.fc_trend = nn.Sequential(
-            nn.Linear(seq_len, pred_len * 4),
+            nn.Linear(seq_len, pred_len * 2),
             nn.AvgPool1d(kernel_size=2),
-            nn.LayerNorm(pred_len*2),
+            nn.LayerNorm(pred_len),
             # nn.GELU(),
             # nn.Dropout(dropout),
-            nn.Linear(pred_len*2, pred_len)
+            nn.Linear(pred_len, pred_len)
         )
 
         # self.fc_trend = nn.Sequential(
@@ -135,8 +135,8 @@ class Network(nn.Module):
 
         s_patch = self.patch_glu(s_patch)     # [B*C, patch_num, d_model]
         
-        s_patch = self.gelu1(s_patch)
-        s_patch = self.ln1(s_patch)
+        # s_patch = self.gelu1(s_patch)
+        # s_patch = self.ln1(s_patch)
 
         # s_rem = s_patch
 
@@ -146,12 +146,12 @@ class Network(nn.Module):
 
         s_patch = s_patch.permute(0, 2, 1)    # [B*C, d_model, patch_num]
         s_patch = self.patch_conv(s_patch)
-        # s_patch = self.patch_pool(s_patch)
+        s_patch = self.patch_pool(s_patch)
         s_patch = s_patch.permute(0, 2, 1)    # [B*C, new_patch_num, d_model]
 
 
-        s_patch = self.gelu2(s_patch)
-        s_patch = self.ln2(s_patch)
+        # s_patch = self.gelu2(s_patch)
+        # s_patch = self.ln2(s_patch)
 
         # s_patch = s_patch + s_rem
 
