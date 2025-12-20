@@ -106,9 +106,14 @@ class Network(nn.Module):
         #     nn.Linear(pred_len, pred_len)
         # )
 
-        self.Linear_Trend = nn.ModuleList([
-            nn.Linear(seq_len, pred_len) for _ in range(7)
-        ])
+        self.fc_trend = nn.Sequential(
+            nn.Linear(self.seq_len, self.seq_len),
+            nn.GELU(),
+            nn.Linear(self.seq_len, self.pred_len)
+        )
+
+        
+
 
 
         self.adaptive_fusion = AdaptiveFusion(pred_len)
