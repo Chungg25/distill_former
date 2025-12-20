@@ -173,7 +173,7 @@ class Network(nn.Module):
         # x = x.permute(0, 2, 1)  
 
         trend_out = []
-        for i in range(self.channels):
+        for i in range(7):
             trend_out.append(self.Linear_Trend[i](t[:, i, :]))  # [B, pred_len]
         t_out = torch.stack(trend_out, dim=2)  # [B, pred_len, C]
         t_out = t_out.reshape(B * C, self.pred_len)
