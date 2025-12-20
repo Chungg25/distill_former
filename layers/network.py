@@ -66,7 +66,7 @@ class Network(nn.Module):
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
 
         self.gelu1 = nn.GELU()
-        self.ln1 = nn.BatchNorm1d(self.patch_num)
+        self.ln1 = nn.BatchNorm1d(self.patch_num//2)
 
         # self.patch_embed = nn.Linear(d_model, d_model)
 
