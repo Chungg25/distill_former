@@ -80,8 +80,8 @@ class Network(nn.Module):
             nn.TransformerEncoderLayer(
                 d_model=d_model,
                 nhead=nhead,
-                dim_feedforward=d_model * 2,
-                # dim_feedforward = 1024,
+                # dim_feedforward=d_model * 2,
+                dim_feedforward = 1024,
                 dropout=dropout,
                 batch_first=True,
                 activation='gelu'
