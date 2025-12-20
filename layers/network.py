@@ -134,6 +134,8 @@ class Network(nn.Module):
         s_patch = self.bn1(s_patch)
         s_patch = s_patch.permute(0, 2, 1)
 
+        s_rem = s_patch
+
         # s_patch = self.patch_embed(s_patch)
 
         # s_patch = self.time_pos_enc(s_patch)
@@ -149,7 +151,7 @@ class Network(nn.Module):
         s_patch = self.bn2(s_patch)
         s_patch = s_patch.permute(0, 2, 1)
 
-        # s_patch = s_patch + s_rem
+        s_patch = s_patch + s_rem
 
         s_patch_residual = s_patch
         s_patch = self.transformer_encoder(s_patch)
