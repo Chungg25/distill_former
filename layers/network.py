@@ -60,7 +60,7 @@ class Network(nn.Module):
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             patch_num += 1
 
-        self.patch_num = patch_num // 2
+        # self.patch_num = patch_num // 2
 
         # ---- Patch-level ----
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
