@@ -2,94 +2,68 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-# ===== Patch-level GLU =====
 class PatchChannelGLU(nn.Module):
     def __init__(self, patch_len, d_model):
         super().__init__()
         self.linear_a = nn.Linear(patch_len, d_model)
         self.linear_b = nn.Linear(patch_len, d_model)
-
-    def forward(self, x):  # x: [B*C, patch_num, patch_len]
+    def forward(self, x):
         a = self.linear_a(x)
         b = torch.sigmoid(self.linear_b(x))
         return a * b
-
 
 class CausalConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation=1):
         super().__init__()
         self.kernel_size = kernel_size
         self.dilation = dilation
-        self.conv = nn.Conv1d(
-            in_channels,
-            out_channels,
-            kernel_size,
-            # padding=0,
-            # dilation=dilation
-        )
-
+        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size)
     def forward(self, x):
-        # x: [B, C, T]
         pad = (self.kernel_size - 1) * self.dilation
-        x = F.pad(x, (pad, 0))   # pad LEFT only (causal)
+        x = F.pad(x, (pad, 0))
         return self.conv(x)
-
 
 class AdaptiveFusion(nn.Module):
     def __init__(self, pred_len):
         super().__init__()
         self.fc = nn.Linear(pred_len * 2, pred_len)
-
     def forward(self, s, t):
         alpha = torch.sigmoid(self.fc(torch.cat([s, t], dim=-1)))
         return alpha * s + (1 - alpha) * t
 
-
 class Network(nn.Module):
     def __init__(self, seq_len, pred_len, patch_len, stride, padding_patch,
-                 dropout=0.1, d_model=64, nhead=4):
+                 dropout=0.1, d_model=64, nhead=4, channels=7):
         super().__init__()
-
         self.pred_len = pred_len
         self.patch_len = patch_len
         self.stride = stride
         self.padding_patch = padding_patch
+        self.channels = channels
 
         patch_num = (seq_len - patch_len) // stride + 1
         if padding_patch == 'end':
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             patch_num += 1
-
         self.patch_num = patch_num
 
-        # ---- Patch-level ----
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
-
         self.gelu1 = nn.GELU()
-        self.ln1 = nn.BatchNorm1d(self.patch_num)
-
-        # self.patch_embed = nn.Linear(d_model, d_model)
-
+        self.ln1 = nn.LayerNorm(self.patch_num)
         self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=2, dilation=1)
-        # self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
-
         self.gelu2 = nn.GELU()
-        self.ln2 = nn.BatchNorm1d(self.patch_num)
-
+        self.ln2 = nn.LayerNorm(self.patch_num)
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=d_model,
                 nhead=nhead,
                 dim_feedforward=d_model * 2,
-                # dim_feedforward = 1024,
                 dropout=dropout,
                 batch_first=True,
                 activation='gelu'
             ),
             num_layers=2
         )
-
-
         self.flatten = nn.Flatten(start_dim=-2)
         self.patch_fc = nn.Sequential(
             nn.Linear(self.patch_num * d_model, pred_len * 2),
@@ -97,18 +71,11 @@ class Network(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(pred_len * 2, pred_len)
         )
-
-        self.fc_trend = nn.Sequential(
-            nn.Linear(seq_len, pred_len * 2),
-            nn.AvgPool1d(kernel_size=2),
-            nn.LayerNorm(pred_len),
-            # nn.Dropout(dropout),
-            nn.Linear(pred_len, pred_len)
-        )
-
-
+        # Trend branch: mỗi channel một Linear riêng
+        self.Linear_Trend = nn.ModuleList([
+            nn.Linear(seq_len, pred_len) for _ in range(self.channels)
+        ])
         self.adaptive_fusion = AdaptiveFusion(pred_len)
-        # self.fc = nn.Linear(pred_len*2, pred_len)
 
     def forward(self, s, t):
         # s, t: [B, seq_len, C]
@@ -119,61 +86,36 @@ class Network(nn.Module):
         s_flat = s.reshape(B * C, I)
         if self.padding_patch == 'end':
             s_flat = self.padding_patch_layer(s_flat)
-
         s_patch = s_flat.unfold(
             dimension=-1,
             size=self.patch_len,
             step=self.stride
         )  # [B*C, patch_num, patch_len]
-
-        s_patch = self.patch_glu(s_patch)     # [B*C, patch_num, d_model]
-        
+        s_patch = self.patch_glu(s_patch)
         s_patch = self.gelu1(s_patch)
         s_patch = self.ln1(s_patch)
-
         s_rem = s_patch
-
-        # s_patch = self.patch_embed(s_patch)
-
-        # s_patch = self.time_pos_enc(s_patch)
-
         s_patch = s_patch.permute(0, 2, 1)    # [B*C, d_model, patch_num]
         s_patch = self.patch_conv(s_patch)
-        # s_patch = self.patch_pool(s_patch)
-        s_patch = s_patch.permute(0, 2, 1)    # [B*C, new_patch_num, d_model]
-
-
+        s_patch = s_patch.permute(0, 2, 1)    # [B*C, patch_num, d_model]
         s_patch = self.gelu2(s_patch)
         s_patch = self.ln2(s_patch)
-
         s_patch = s_patch + s_rem
-
-        # s_patch = s_patch.permute(0, 2, 1)
-        # s_patch = self.patch_pool(s_patch)
-        # s_patch = s_patch.permute(0, 2, 1)    # [B*C, new_patch_num, d_model]
-
-
         s_patch_residual = s_patch
         s_patch = self.transformer_encoder(s_patch)
         s_patch = s_patch + s_patch_residual
-
         s_patch = self.flatten(s_patch)
         s_out = self.patch_fc(s_patch)        # [B*C, pred_len]
 
-        t_flat = t.reshape(B * C, I)
-        t_out = self.fc_trend(t_flat)
-
-        # x = torch.cat((s_out, t_out), dim=1)
-        # x = self.fc(x)
-        # x = torch.reshape(x, (B, C, self.pred_len))
-        # x = x.permute(0, 2, 1)  
+        # Trend branch: mỗi channel một Linear riêng
+        t = t.permute(0, 2, 1)  # [B, C, seq_len]
+        trend_out = []
+        for i in range(self.channels):
+            trend_out.append(self.Linear_Trend[i](t[:, i, :]))  # [B, pred_len]
+        t_out = torch.stack(trend_out, dim=2)  # [B, pred_len, C]
+        t_out = t_out.reshape(B * C, self.pred_len)
 
         x = self.adaptive_fusion(s_out, t_out)
         x = x.view(B, C, self.pred_len)
-        x = x.permute(0, 2, 1)                # [B, pred_len, C]
-
-        # x = s_out + t_out
-        # x = torch.reshape(x, (B, C, self.pred_len)) # [Batch, Channel, Output]
-        # x = x.permute(0,2,1)
-
+        x = x.permute(0, 2, 1)  # [B, pred_len, C]
         return x
