@@ -153,6 +153,7 @@ class Network(nn.Module):
 
         s_patch = s_patch + s_rem
 
+        s_patch = s_patch.permute(0, 2, 1)
         s_patch = self.patch_pool(s_patch)
         s_patch = s_patch.permute(0, 2, 1)    # [B*C, new_patch_num, d_model]
 
