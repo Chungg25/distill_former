@@ -81,7 +81,7 @@ class Network(nn.Module):
             nn.TransformerEncoderLayer(
                 d_model=d_model,
                 nhead=nhead,
-                dim_feedforward=d_model * 4,
+                dim_feedforward=d_model * 2,
                 # dim_feedforward = 1024,
                 dropout=dropout,
                 batch_first=True,
@@ -100,11 +100,11 @@ class Network(nn.Module):
         )
 
         self.fc_trend = nn.Sequential(
-            nn.Linear(seq_len, pred_len * 4),
+            nn.Linear(seq_len, pred_len * 2),
             nn.AvgPool1d(kernel_size=2),
-            nn.LayerNorm(pred_len*2),
+            nn.LayerNorm(pred_len),
             nn.Dropout(dropout),
-            nn.Linear(pred_len*2, pred_len)
+            nn.Linear(pred_len, pred_len)
         )
 
 
@@ -140,7 +140,7 @@ class Network(nn.Module):
 
         s_patch = s_patch.permute(0, 2, 1)    # [B*C, d_model, patch_num]
         s_patch = self.patch_conv(s_patch)
-        s_patch = self.patch_pool(s_patch)
+        # s_patch = self.patch_pool(s_patch)
         s_patch = s_patch.permute(0, 2, 1)    # [B*C, new_patch_num, d_model]
 
 
