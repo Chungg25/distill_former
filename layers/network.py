@@ -103,7 +103,7 @@ class Network(nn.Module):
             nn.Linear(seq_len, pred_len * 2),
             nn.AvgPool1d(kernel_size=2),
             nn.LayerNorm(pred_len),
-            nn.Dropout(dropout),
+            # nn.Dropout(dropout),
             nn.Linear(pred_len, pred_len)
         )
 
