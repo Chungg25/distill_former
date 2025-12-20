@@ -70,8 +70,6 @@ class GatedPatchFC(nn.Module):
         return self.dropout(a * b)
 
 
-
-# ===== Full Network =====
 class Network(nn.Module):
     def __init__(self, seq_len, pred_len, patch_len, stride, padding_patch,
                  dropout=0.1, d_model=64, nhead=4):
@@ -82,44 +80,28 @@ class Network(nn.Module):
         self.stride = stride
         self.padding_patch = padding_patch
 
-        # ---- Patch number ----
         patch_num = (seq_len - patch_len) // stride + 1
         if padding_patch == 'end':
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             patch_num += 1
 
-        # Sau pooling stride=2
         self.patch_num = patch_num // 2
 
         # ---- Patch-level ----
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
+
+        self.gelu1 = nn.GELU()
+        self.bn1 = nn.BatchNorm1d(d_model)
+
         self.patch_embed = nn.Linear(d_model, d_model)
 
-        # 🔥 Conv1d + Pooling (NEW)
-        # self.patch_conv = nn.Sequential(
-        #     CausalConv1d(d_model, d_model, kernel_size=3, dilation=1),
-        #     nn.GELU(),
-        #     CausalConv1d(d_model, d_model, kernel_size=3, dilation=2),
-        #     nn.GELU(),
-        # )
-        # self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
-
-        # self.patch_conv = nn.Conv1d(
-        #     in_channels=d_model,
-        #     out_channels=d_model,
-        #     kernel_size=3,
-        #     padding=1
-        # )
         self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=3, dilation=1)
         self.patch_pool = nn.AvgPool1d(kernel_size=2, stride=2)
 
-        # self.patch_time_emb = PatchTimeEmbedding(
-        #     max_patch_num=self.patch_num,
-        #     d_model=d_model
-        # )
+        self.gelu2 = nn.GELU()
+        self.bn2 = nn.BatchNorm1d(d_model)
 
-
-        # ---- Transformer ----
+        # self.time_pos_enc = PositionalEncoding(d_model, max_len=patch_num)
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=d_model,
@@ -133,35 +115,27 @@ class Network(nn.Module):
             num_layers=2
         )
 
+
+
         self.flatten = nn.Flatten(start_dim=-2)
         self.patch_fc = nn.Sequential(
-            # GatedPatchFC(self.patch_num * d_model, pred_len * 2, dropout),
             nn.Linear(self.patch_num * d_model, pred_len * 2),
             nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(pred_len * 2, pred_len)
         )
 
-        # self.patch_fc = GatedPatchHead(self.patch_num, d_model, pred_len, dropout)
-
-        # ---- Trend stream ----
         self.fc_trend = nn.Sequential(
-            nn.Linear(seq_len, pred_len * 4),
+            nn.Linear(seq_len, pred_len * 2),
             nn.AvgPool1d(kernel_size=2),
-            nn.LayerNorm(pred_len*2),
+            nn.LayerNorm(pred_len),
             nn.Dropout(dropout),
-            nn.Linear(pred_len*2, pred_len)
+            nn.Linear(pred_len, pred_len)
         )
 
-        # self.trend_encoder = MultiScaleTrend(
-        #     seq_len=seq_len,
-        #     pred_len=pred_len,
-        #     hidden=pred_len * 4,
-        #     dropout=dropout
-        # )
 
-
-        # self.adaptive_fusion = AdaptiveFusion(pred_len)
+        self.adaptive_fusion = AdaptiveFusion(pred_len)
+        # self.fc = nn.Linear(pred_len*2, pred_len)
 
     def forward(self, s, t):
         # s, t: [B, seq_len, C]
@@ -169,7 +143,6 @@ class Network(nn.Module):
         t = t.permute(0, 2, 1)
         B, C, I = s.shape
 
-        # ---- Patch-level ----
         s_flat = s.reshape(B * C, I)
         if self.padding_patch == 'end':
             s_flat = self.padding_patch_layer(s_flat)
@@ -181,33 +154,52 @@ class Network(nn.Module):
         )  # [B*C, patch_num, patch_len]
 
         s_patch = self.patch_glu(s_patch)     # [B*C, patch_num, d_model]
+        
+        s_patch = self.gelu1(s_patch)
+        s_patch = s_patch.permute(0, 2, 1)  # [B*C, d_model, patch_num]
+        s_patch = self.bn1(s_patch)
+        s_patch = s_patch.permute(0, 2, 1)
+
         s_patch = self.patch_embed(s_patch)
 
-        # 🔥 Conv1d + Pooling
+        s_rem = s_patch
+
+        # s_patch = self.time_pos_enc(s_patch)
+
         s_patch = s_patch.permute(0, 2, 1)    # [B*C, d_model, patch_num]
         s_patch = self.patch_conv(s_patch)
         s_patch = self.patch_pool(s_patch)
         s_patch = s_patch.permute(0, 2, 1)    # [B*C, new_patch_num, d_model]
 
-        # ---- Transformer ----
-        # s_patch = self.patch_time_emb(s_patch)
+
+        s_patch = self.gelu2(s_patch)
+        s_patch = s_patch.permute(0, 2, 1)
+        s_patch = self.bn2(s_patch)
+        s_patch = s_patch.permute(0, 2, 1)
+
+        # s_patch = s_patch + s_rem
+
+        s_patch_residual = s_patch
         s_patch = self.transformer_encoder(s_patch)
+        s_patch = s_patch + s_patch_residual
 
         s_patch = self.flatten(s_patch)
         s_out = self.patch_fc(s_patch)        # [B*C, pred_len]
 
-        # ---- Trend stream ----
         t_flat = t.reshape(B * C, I)
         t_out = self.fc_trend(t_flat)
-        # t_out = self.trend_encoder(t_flat)
 
-        # ---- Fusion ----
-        # x = self.adaptive_fusion(s_out, t_out)
-        # x = x.view(B, C, self.pred_len)
-        # x = x.permute(0, 2, 1)                # [B, pred_len, C]
+        # x = torch.cat((s_out, t_out), dim=1)
+        # x = self.fc(x)
+        # x = torch.reshape(x, (B, C, self.pred_len))
+        # x = x.permute(0, 2, 1)  
 
-        x = s_out + t_out
-        x = torch.reshape(x, (B, C, self.pred_len)) # [Batch, Channel, Output]
-        x = x.permute(0,2,1)
+        x = self.adaptive_fusion(s_out, t_out)
+        x = x.view(B, C, self.pred_len)
+        x = x.permute(0, 2, 1)                # [B, pred_len, C]
+
+        # x = s_out + t_out
+        # x = torch.reshape(x, (B, C, self.pred_len)) # [Batch, Channel, Output]
+        # x = x.permute(0,2,1)
 
         return x
