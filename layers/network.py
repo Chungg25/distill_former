@@ -107,6 +107,7 @@ class Network(nn.Module):
         self.fc_trend2 = nn.Linear(seq_len, pred_len * 2)
         self.avgpool2 = nn.AvgPool1d(kernel_size=2)
         self.ln2 = nn.LayerNorm(pred_len)
+        self.gelu2 = nn.GELU()
         self.fc_dropout2 = nn.Dropout(dropout)
         self.fc_trend3 = nn.Linear(pred_len, pred_len)
 
@@ -165,6 +166,7 @@ class Network(nn.Module):
         t = self.fc_trend2(t)
         t = self.avgpool2(t)
         t = self.ln2(t)
+        t = self.gelu2(t)
         t = self.fc_dropout2(t)
         t = self.fc_trend3(t)
 
