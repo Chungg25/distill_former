@@ -36,11 +36,12 @@ class Model(nn.Module):
         beta = configs.beta         # smoothing factor for DEMA (Double Exponential Moving Average)
 
         dropout = configs.dropout
+        num_layers = configs.num_layers
 
         self.decomp = DECOMP(self.ma_type, alpha, beta, period_len)
         # self.net = Network(seq_len, pred_len, c_in, period_len, d_model, dropout)
         # self.net = Network(seq_len, pred_len, c_in, period_len, d_model)
-        self.net = Network(seq_len, pred_len, patch_len, stride, padding_patch, dropout, d_model, nhead)
+        self.net = Network(seq_len, pred_len, patch_len, stride, padding_patch, dropout, d_model, nhead, num_layers)
         # self.net_mlp = NetworkMLP(seq_len, pred_len) # For ablation study with MLP-only stream
         # self.net_cnn = NetworkCNN(seq_len, pred_len, patch_len, stride, padding_patch) # For ablation study with CNN-only stream
 

@@ -47,7 +47,7 @@ class AdaptiveFusion(nn.Module):
 
 class Network(nn.Module):
     def __init__(self, seq_len, pred_len, patch_len, stride, padding_patch,
-                 dropout=0.1, d_model=64, nhead=4):
+                 dropout=0.1, d_model=64, nhead=4, num_layers=2):
         super().__init__()
 
         self.pred_len = pred_len
@@ -78,7 +78,7 @@ class Network(nn.Module):
                 batch_first=True,
                 activation='gelu'
             ),
-            num_layers=2
+            num_layers=3
         )
 
 
