@@ -92,7 +92,7 @@ class Network(nn.Module):
 
         self.fl_linear = nn.Linear(self.patch_num * d_model, pred_len * 2)
         self.fl_gelu = nn.GELU()
-        self.fl_dropout = nn.Dropout(self.drop_out)
+        self.fl_dropout = nn.Dropout(dropout)
         self.fl_linear2 = nn.Linear(pred_len * 2, pred_len)
 
         # self.fc_trend = nn.Sequential(
