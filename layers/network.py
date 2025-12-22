@@ -146,8 +146,9 @@ class Network(nn.Module):
 
 
         s_patch_residual = s_patch
-        mask = torch.triu(torch.ones(s_patch.shape[1], s_patch.shape[1], device=s.device), diagonal=1).bool()
-        s_patch = self.transformer_encoder(s_patch, mask=mask)
+        # mask = torch.triu(torch.ones(s_patch.shape[1], s_patch.shape[1], device=s.device), diagonal=1).bool()
+        # s_patch = self.transformer_encoder(s_patch, mask=mask)
+        s_patch = self.transformer_encoder(s_patch)
         s_patch = s_patch + s_patch_residual
 
         s_patch = self.flatten(s_patch)
