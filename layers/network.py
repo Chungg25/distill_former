@@ -78,7 +78,7 @@ class Network(nn.Module):
                 batch_first=True,
                 activation='gelu'
             ),
-            num_layers=3
+            num_layers=num_layers
         )
 
 
