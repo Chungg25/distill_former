@@ -68,7 +68,6 @@ class Network(nn.Module):
         self.patch_embed = nn.Linear(d_model, d_model)
 
         self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=3, dilation=1)
-        print(num_layers)
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=d_model,
