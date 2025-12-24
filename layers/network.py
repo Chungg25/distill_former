@@ -24,6 +24,7 @@ class CausalConv1d(nn.Module):
             in_channels,
             out_channels,
             kernel_size,
+            groups=in_channels,
             # padding=0,
             # dilation=dilation
         )
