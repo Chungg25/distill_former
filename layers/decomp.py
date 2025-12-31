@@ -15,9 +15,9 @@ class DECOMP(nn.Module):
         if ma_type == 'ema':
             self.ma = EMA(alpha)
         elif ma_type == 'dema':
-            self.ma = DEMA(alpha, beta)
+            self.ma = DEMA(alpha)
         elif ma_type == 'sma':
-            self.ma = moving_avg(window_size, stride=1)
+            self.ma = moving_avg()
         elif ma_type == 'wma':
             self.ma = WMA(window_size)
         

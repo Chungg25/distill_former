@@ -5,7 +5,7 @@ class moving_avg(nn.Module):
     """
     Moving average block to highlight the trend of time series
     """
-    def __init__(self, kernel_size, stride):
+    def __init__(self, kernel_size=25, stride=1):
         super(moving_avg, self).__init__()
         self.kernel_size = kernel_size
         self.avg = nn.AvgPool1d(kernel_size=kernel_size, stride=stride, padding=0)

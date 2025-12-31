@@ -1,25 +1,22 @@
 import torch
 from torch import nn
 
+from .ema import EMA
+
 class DEMA(nn.Module):
     """
     Double Exponential Moving Average (DEMA) block to highlight the trend of time series
+    DEMA(x) = 2 * EMA(x) - EMA(EMA(x))
     """
-    def __init__(self, alpha, beta):
+    def __init__(self, alpha):
         super(DEMA, self).__init__()
-        # self.alpha = nn.Parameter(alpha)    # Learnable alpha
-        # self.beta = nn.Parameter(beta)      # Learnable beta
         self.alpha = alpha
-        self.beta = beta
+        self.ema1 = EMA(alpha)
+        self.ema2 = EMA(alpha)
 
     def forward(self, x):
         # x: [Batch, Time, Channel]
-        B, T, C = x.shape
-        s = torch.zeros((B, T, C), device=x.device, dtype=x.dtype)
-        b = torch.zeros((B, T, C), device=x.device, dtype=x.dtype)
-        s[:,0,:] = x[:,0,:]
-        b[:,0,:] = x[:,1,:] - x[:,0,:]
-        for t in range(1, T):
-            s[:,t,:] = self.alpha * x[:,t,:] + (1-self.alpha) * (s[:,t-1,:] + b[:,t-1,:])
-            b[:,t,:] = self.beta * (s[:,t,:] - s[:,t-1,:]) + (1-self.beta) * b[:,t-1,:]
-        return s
+        ema_x = self.ema1(x)
+        ema_ema_x = self.ema2(ema_x)
+        dema = 2 * ema_x - ema_ema_x
+        return dema
