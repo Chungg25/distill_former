@@ -95,11 +95,11 @@ class Exp_Main(Exp_Basic):
                     self.ratio = np.array([-1 * math.atan(i+1) + math.pi/4 + 1 for i in range(self.args.pred_len)])
                     self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
 
-                    pred = outputs*self.ratio
-                    true = batch_y*self.ratio
+                    # pred = outputs*self.ratio
+                    # true = batch_y*self.ratio
 
-                    # pred = outputs
-                    # true = batch_y
+                    pred = outputs
+                    true = batch_y
                 else:
                     pred = outputs#.detach().cpu()
                     true = batch_y#.detach().cpu()
@@ -189,11 +189,11 @@ class Exp_Main(Exp_Basic):
                 self.ratio = np.array([-1 * math.atan(i+1) + math.pi/4 + 1 for i in range(self.args.pred_len)])
                 self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
 
-                outputs = outputs*self.ratio
-                batch_y = batch_y*self.ratio
+                # outputs = outputs*self.ratio
+                # batch_y = batch_y*self.ratio
 
-                # outputs = outputs
-                # batch_y = batch_y
+                outputs = outputs
+                batch_y = batch_y
 
                 loss = mae_criterion(outputs, batch_y)
                 # loss = 0.5 * mse_criterion(outputs, batch_y) + 0.5 * mae_criterion(outputs, batch_y)

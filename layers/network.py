@@ -15,24 +15,24 @@ class PatchChannelGLU(nn.Module):
         return a * b
 
 
-class CausalConv1d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation=1):
+class local_temporal(nn.Module):
+    def __init__(self, kernel_size, dilation=1):
         super().__init__()
         self.kernel_size = kernel_size
         self.dilation = dilation
         self.conv = nn.Conv1d(
-            in_channels,
-            out_channels,
-            kernel_size,
-            groups=in_channels,
-            # padding=0,
-            # dilation=dilation
+            in_channels=1,
+            out_channels=1,
+            kernel_size=kernel_size,
+            dilation=dilation,
+            padding= (kernel_size - 1) // 2 * dilation,
+            groups=1
         )
 
     def forward(self, x):
         # x: [B, C, T]
-        pad = (self.kernel_size - 1) * self.dilation
-        x = F.pad(x, (pad, 0))   # pad LEFT only (causal)
+        # pad = (self.kernel_size - 1) * self.dilation
+        # x = F.pad(x, (pad, 0))   # pad LEFT only (causal)
         return self.conv(x)
 
 
@@ -61,14 +61,16 @@ class Network(nn.Module):
             self.padding_patch_layer = nn.ReplicationPad1d((0, stride))
             patch_num += 1
 
-        self.patch_num = patch_num
+        self.patch_num = patch_num 
+
+        self.patch_conv = local_temporal(kernel_size=3, dilation=1)
 
         self.patch_glu = PatchChannelGLU(patch_len, d_model)
 
 
         self.patch_embed = nn.Linear(d_model, d_model)
 
-        self.patch_conv = CausalConv1d(d_model, d_model, kernel_size=3, dilation=1)
+        
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=d_model,
@@ -138,19 +140,26 @@ class Network(nn.Module):
             step=self.stride
         )  # [B*C, patch_num, patch_len]
 
-        s_patch = self.patch_glu(s_patch)     # [B*C, patch_num, d_model]
+        BC, P, L = s_patch.shape
+        s_patch = s_patch.reshape(BC * P, 1, L)
+        residual = s_patch
+        s_patch = self.patch_conv(s_patch)
+        s_patch = s_patch + residual
+        s_patch = s_patch.reshape(BC, P, L)
+        
 
+        s_patch = self.patch_glu(s_patch)      # [B*C, P, d_model]
+        s_patch = F.gelu(s_patch)
         s_patch = self.patch_embed(s_patch)
 
-        s_patch = s_patch.permute(0, 2, 1)    # [B*C, d_model, patch_num]
-        s_patch = self.patch_conv(s_patch)
-        s_patch = s_patch.permute(0, 2, 1)    # [B*C, new_patch_num, d_model]
+
+        # print(s_patch.shape)
 
 
         s_patch_residual = s_patch
-        mask = torch.triu(torch.ones(s_patch.shape[1], s_patch.shape[1], device=s.device), diagonal=1).bool()
-        s_patch = self.transformer_encoder(s_patch, mask=mask)
-        # s_patch = self.transformer_encoder(s_patch)
+        # mask = torch.triu(torch.ones(s_patch.shape[1], s_patch.shape[1], device=s.device), diagonal=1).bool()
+        # s_patch = self.transformer_encoder(s_patch, mask=mask)
+        s_patch = self.transformer_encoder(s_patch)
         s_patch = s_patch + s_patch_residual
 
         s_patch = self.flatten(s_patch)
