@@ -153,7 +153,7 @@ class Model(nn.Module):
         if self.ma_type == 'sma':  
             resid_init, trend_init = self.decomp(x)
             x = self.net(resid_init, trend_init)
-        else:
+        if self.ma_type == 'dema':
             seasonal_init, trend_init = self.decomp(x)
             x = self.net(seasonal_init, trend_init)
 
