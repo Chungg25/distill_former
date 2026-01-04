@@ -14,6 +14,9 @@ class PatchChannelGLU(nn.Module):
         b = torch.sigmoid(self.linear_b(x))
         return a * b
 
+def abc():
+    pass
+
 
 class local_temporal(nn.Module):
     def __init__(self, kernel_size, dilation=1):
